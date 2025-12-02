@@ -1,0 +1,110 @@
+# Implementation Plan
+
+- [x] 1. Create Core Infrastructure
+  - [x] 1.1 Create AppColors constants class
+    - Create `lib/core/constants/app_colors.dart`
+    - Define all color constants used in the app (primary, secondary, surface, background, error, success)
+    - Replace hardcoded hex values with named constants
+    - _Requirements: 3.2_
+  - [x] 1.2 Write property test for Color Constants Completeness
+    - **Property 2: Color Constants Completeness**
+    - **Validates: Requirements 3.2**
+  - [x] 1.3 Create AppExceptions classes
+    - Create `lib/core/exceptions/app_exceptions.dart`
+    - Define base AppException abstract class with message and userFriendlyMessage
+    - Create ServiceException, RepositoryException, ValidationException subclasses
+    - _Requirements: 5.1_
+  - [x] 1.4 Write property test for Exception User Message
+    - **Property 3: Exception User Message**
+    - **Validates: Requirements 5.2**
+  - [x] 1.5 Create ErrorHandler utility
+    - Create `lib/core/utils/error_handler.dart`
+    - Implement showError() for SnackBar display
+    - Implement logError() for debugging
+    - Implement handle() combining both
+    - _Requirements: 5.2, 5.3_
+  - [x] 1.6 Write property test for Error Handler Message Mapping
+    - **Property 4: Error Handler Message Mapping**
+    - **Validates: Requirements 5.1, 5.2**
+
+- [x] 2. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 3. Create App Module
+  - [x] 3.1 Create AppTheme class
+    - Create `lib/app/app_theme.dart`
+    - Implement darkTheme and lightTheme getters using AppColors
+    - Implement getTheme(AppThemeMode mode) method
+    - _Requirements: 3.1, 3.2_
+  - [x] 3.2 Write property test for Theme Validity
+    - **Property 1: Theme Validity**
+    - **Validates: Requirements 1.2, 3.1**
+  - [x] 3.3 Create AppInitializer service
+    - Create `lib/app/app_initializer.dart`
+    - Move Hive initialization logic from main.dart
+    - Move notification initialization logic
+    - Move alarm manager initialization logic
+    - _Requirements: 1.1_
+  - [x] 3.4 Extract MainNavigationScreen
+    - Create `lib/screens/main_navigation_screen.dart`
+    - Move MainNavigationScreen and _MainNavigationScreenState from main.dart
+    - Update imports
+    - _Requirements: 1.4_
+  - [x] 3.5 Create MyApp widget file
+    - Create `lib/app/app.dart`
+    - Move MyApp and _MyAppState from main.dart
+    - Use AppTheme for theme configuration
+    - Import MainNavigationScreen
+    - _Requirements: 1.2, 1.3_
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 5. Extract Dialog Components
+  - [x] 5.1 Extract BatteryOptimizationDialog
+    - Create `lib/widgets/dialogs/battery_optimization_dialog.dart`
+    - Move BatteryOptimizationDialog from main.dart
+    - Use AppColors for color values
+    - _Requirements: 2.1_
+  - [x] 5.2 Create dialogs barrel file
+    - Create `lib/widgets/dialogs/dialogs.dart`
+    - Export all dialog widgets
+    - _Requirements: 2.2_
+
+- [x] 6. Refactor Main Entry Point
+  - [x] 6.1 Simplify main.dart
+    - Replace initialization code with AppInitializer.initialize()
+    - Import MyApp from app/app.dart
+    - Remove all extracted classes and widgets
+    - Target: under 50 lines of code
+    - _Requirements: 1.1, 1.3_
+  - [x] 6.2 Update imports across the app
+    - Update settings_screen.dart to use new dialog imports
+    - Update any other files referencing moved components
+    - _Requirements: 2.2_
+
+- [x] 7. Code Quality Improvements
+  - [x] 7.1 Fix deprecated APIs in main.dart
+    - Replace withOpacity() with withValues()
+    - Remove unused imports (boot_handler.dart)
+    - _Requirements: 7.1, 7.2_
+  - [x] 7.2 Fix deprecated APIs in settings_screen.dart
+    - Update Radio widget to use RadioGroup pattern
+    - _Requirements: 7.1_
+  - [x] 7.3 Apply ErrorHandler to settings_screen.dart
+    - Replace inline error handling with ErrorHandler.handle()
+    - Use domain-specific exceptions where appropriate
+    - _Requirements: 5.1, 5.2_
+
+- [x] 8. Create Barrel Files
+  - [x] 8.1 Create core barrel file
+    - Create `lib/core/core.dart`
+    - Export constants, exceptions, and utils
+    - _Requirements: 2.2_
+  - [x] 8.2 Create app barrel file
+    - Create `lib/app/app_exports.dart`
+    - Export app.dart, app_theme.dart, app_initializer.dart
+    - _Requirements: 2.2_
+
+- [x] 9. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
