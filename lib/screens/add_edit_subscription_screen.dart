@@ -370,6 +370,45 @@ class _AddEditSubscriptionScreenState
     );
   }
 
+  PopupMenuItem<String> _buildPopupMenuItem(
+    String currencyCode,
+    String symbol,
+  ) {
+    return PopupMenuItem<String>(
+      value: currencyCode,
+      child: Row(
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                symbol,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            currencyCode,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFormFields() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -396,10 +435,74 @@ class _AddEditSubscriptionScreenState
             ),
             const SizedBox(width: 16),
             Expanded(
-              child: _buildTextField(
-                controller: _currencyController,
-                label: 'Currency',
-                icon: Icons.currency_exchange_rounded,
+              child: Container(
+                height: 56,
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withOpacity(0.05)),
+                ),
+                child: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    setState(() {
+                      _currencyController.text = value;
+                    });
+                  },
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  color: AppColors.surface,
+                  offset: const Offset(0, 60),
+                  itemBuilder: (context) => [
+                    _buildPopupMenuItem('IDR', 'Rp'),
+                    _buildPopupMenuItem('USD', '\$'),
+                  ],
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withOpacity(0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  _currencyController.text == 'IDR'
+                                      ? 'Rp'
+                                      : '\$',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _currencyController.text,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: AppColors.textSecondary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -483,7 +586,7 @@ class _AddEditSubscriptionScreenState
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.primary),
+          borderSide: const BorderSide(color: Colors.white), // Changed to white
         ),
       ),
       validator: (value) {
@@ -506,23 +609,33 @@ class _AddEditSubscriptionScreenState
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primary.withOpacity(0.15)
-              : AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
+          color: isSelected ? Colors.white : AppColors.surface,
+          borderRadius: BorderRadius.circular(30), // More rounded (Pill shape)
           border: Border.all(
             color: isSelected
-                ? AppColors.primary
+                ? Colors.transparent
                 : Colors.white.withOpacity(0.05),
-            width: isSelected ? 2 : 1,
+            width: 1,
           ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.white.withOpacity(0.1),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : [],
         ),
         child: Center(
           child: Text(
             label,
             style: TextStyle(
-              color: isSelected ? AppColors.primary : AppColors.textSecondary,
+              color: isSelected
+                  ? Colors.black
+                  : AppColors.textSecondary, // Black text on white
               fontWeight: FontWeight.bold,
+              fontSize: 15,
             ),
           ),
         ),

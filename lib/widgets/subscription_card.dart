@@ -25,16 +25,24 @@ class SubscriptionCard extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.surface, AppColors.surface.withOpacity(0.8)],
+          colors: isUrgent
+              ? [
+                  AppColors.error.withOpacity(0.2), // Elegant dark red tint
+                  AppColors.surface,
+                ]
+              : [AppColors.surface, AppColors.surface.withOpacity(0.8)],
         ),
         border: Border.all(
           color: isUrgent
-              ? AppColors.error.withOpacity(0.3)
+              ? AppColors.error.withOpacity(0.3) // Subtle red border
               : Colors.white.withOpacity(0.05),
+          width: isUrgent ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: isUrgent
+                ? AppColors.error.withOpacity(0.1) // Red glow for urgent
+                : Colors.black.withOpacity(0.2),
             blurRadius: 16,
             offset: const Offset(0, 8),
           ),
