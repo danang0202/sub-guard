@@ -8,6 +8,7 @@ import '../models/user_settings.dart';
 import '../providers/providers.dart';
 import '../services/backup_manager.dart';
 import '../services/permission_handler.dart';
+import '../services/notification_service.dart';
 import '../widgets/dynamic_island_toast.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -176,6 +177,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               subtitle: 'Ensure reminders work reliably',
                               onTap: () =>
                                   _showWhitelistingGuide(batteryDetector),
+                            ),
+                            _buildDivider(),
+                            _buildSettingsTile(
+                              icon: Icons.notifications_active_rounded,
+                              title: 'Test Notification',
+                              subtitle: 'Send a sample alert',
+                              onTap: _testNotification,
                             ),
                             _buildDivider(),
                             _buildSettingsTile(
@@ -354,6 +362,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         DynamicIslandToast.show(
           context,
           message: 'Error requesting permissions',
+          icon: Icons.error_rounded,
+          iconColor: AppColors.error,
+        );
+      }
+    }
+  }
+
+  Future<void> _testNotification() async {
+    try {
+      final notificationService = NotificationService();
+      await notificationService.initialize();
+      await notificationService.showStandardNotification(
+        subscriptionId: 'test_id',
+        serviceName: 'Test Subscription',
+        cost: 9.99,
+        currency: 'USD',
+        daysUntilBilling: 3,
+      );
+
+      if (mounted) {
+        DynamicIslandToast.show(
+          context,
+          message: 'Notification sent!',
+          icon: Icons.send_rounded,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        DynamicIslandToast.show(
+          context,
+          message: 'Failed to send notification',
           icon: Icons.error_rounded,
           iconColor: AppColors.error,
         );

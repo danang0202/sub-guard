@@ -34,28 +34,48 @@ class NotificationScheduler {
 
       // Schedule notifications for each reminder day
       for (final reminderDay in _notificationConfig.reminderDays) {
-        // Calculate the notification date
-        final notificationDate = billingDate.subtract(
-          Duration(days: reminderDay),
-        );
+        // Calculate the base notification date
+        final baseDate = billingDate.subtract(Duration(days: reminderDay));
 
-        // Only schedule if the notification date is in the future
-        if (notificationDate.isAfter(now)) {
-          final alarmId = _generateAlarmId(subscription.id, reminderDay);
+        // Schedule for 3 times: 07:30, 12:00, 18:00
+        final times = [
+          {'hour': 7, 'minute': 30},
+          {'hour': 12, 'minute': 0},
+          {'hour': 18, 'minute': 0},
+        ];
 
-          // Determine notification type based on reminder day
-          final notificationType = _getNotificationType(reminderDay);
+        for (var i = 0; i < times.length; i++) {
+          final time = times[i];
+          final notificationDate = DateTime(
+            baseDate.year,
+            baseDate.month,
+            baseDate.day,
+            time['hour']!,
+            time['minute']!,
+          );
 
-          final payload = {
-            'subscriptionId': subscription.id,
-            'serviceName': subscription.serviceName,
-            'cost': subscription.cost,
-            'currency': subscription.currency,
-            'notificationType': notificationType,
-            'daysUntilBilling': reminderDay,
-          };
+          // Only schedule if the notification date is in the future
+          if (notificationDate.isAfter(now)) {
+            final alarmId = _generateAlarmId(subscription.id, reminderDay, i);
 
-          await _alarmManager.scheduleAlarm(alarmId, notificationDate, payload);
+            // Determine notification type based on reminder day
+            final notificationType = _getNotificationType(reminderDay);
+
+            final payload = {
+              'subscriptionId': subscription.id,
+              'serviceName': subscription.serviceName,
+              'cost': subscription.cost,
+              'currency': subscription.currency,
+              'notificationType': notificationType,
+              'daysUntilBilling': reminderDay,
+            };
+
+            await _alarmManager.scheduleAlarm(
+              alarmId,
+              notificationDate,
+              payload,
+            );
+          }
         }
       }
     } catch (e) {
@@ -68,10 +88,13 @@ class NotificationScheduler {
   /// Cancel all notifications for a subscription
   Future<void> cancelNotificationsForSubscription(String subscriptionId) async {
     try {
-      // Cancel alarms for all possible reminder days
+      // Cancel alarms for all possible reminder days and times
       for (final reminderDay in _notificationConfig.reminderDays) {
-        final alarmId = _generateAlarmId(subscriptionId, reminderDay);
-        await _alarmManager.cancelAlarm(alarmId);
+        // 3 times per day
+        for (var i = 0; i < 3; i++) {
+          final alarmId = _generateAlarmId(subscriptionId, reminderDay, i);
+          await _alarmManager.cancelAlarm(alarmId);
+        }
       }
     } catch (e) {
       throw NotificationSchedulerException(
@@ -102,16 +125,20 @@ class NotificationScheduler {
     }
   }
 
-  /// Generate a unique alarm ID based on subscription ID and reminder day
+  /// Generate a unique alarm ID based on subscription ID, reminder day, and time index
   /// This ensures each notification has a unique ID
-  int _generateAlarmId(String subscriptionId, int reminderDay) {
-    // Use hash code of subscription ID combined with reminder day
+  int _generateAlarmId(String subscriptionId, int reminderDay, int timeIndex) {
+    // Use hash code of subscription ID combined with reminder day and time index
     // This creates a unique but reproducible ID
     final baseHash = subscriptionId.hashCode;
 
-    // Combine with reminder day to make it unique
+    // Combine with reminder day and time index to make it unique
     // Use different multipliers to avoid collisions
-    return (baseHash & 0x0FFFFFFF) + (reminderDay * 1000000);
+    // reminderDay * 1000000 (up to ~2000 days)
+    // timeIndex * 10000 (up to ~100 times)
+    return (baseHash & 0x0FFFFFFF) +
+        (reminderDay * 1000000) +
+        (timeIndex * 10000);
   }
 
   /// Determine notification type based on days until billing
