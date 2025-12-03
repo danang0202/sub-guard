@@ -1,8 +1,12 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../models/subscription.dart';
+import '../models/preset_service.dart';
 import '../providers/providers.dart';
+import '../core/constants/app_colors.dart';
+import '../widgets/dynamic_island_toast.dart';
 import 'add_edit_subscription_screen.dart';
 
 class SubscriptionDetailScreen extends ConsumerWidget {
@@ -18,8 +22,18 @@ class SubscriptionDetailScreen extends ConsumerWidget {
 
     if (subscription == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Subscription Details')),
-        body: const Center(child: Text('Subscription not found')),
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: const BackButton(color: Colors.white),
+        ),
+        body: const Center(
+          child: Text(
+            'Subscription not found',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
       );
     }
 
@@ -29,212 +43,417 @@ class SubscriptionDetailScreen extends ConsumerWidget {
         .inDays;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Subscription Details'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      AddEditSubscriptionScreen(subscriptionId: subscriptionId),
-                ),
-              );
-            },
+      backgroundColor: AppColors.background,
+      body: Stack(
+        children: [
+          // Background Ambient Glow
+          Positioned(
+            top: -100,
+            left: -100,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: brandColor.withOpacity(0.2),
+                boxShadow: [
+                  BoxShadow(
+                    color: brandColor.withOpacity(0.4),
+                    blurRadius: 100,
+                    spreadRadius: 50,
+                  ),
+                ],
+              ),
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: () => _confirmDelete(context, ref, subscription),
+
+          CustomScrollView(
+            slivers: [
+              // Custom App Bar with Actions
+              SliverAppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                pinned: true,
+                leading: _buildAppBarButton(
+                  icon: Icons.arrow_back_rounded,
+                  onPressed: () => Navigator.pop(context),
+                ),
+                actions: [
+                  _buildAppBarButton(
+                    icon: Icons.edit_rounded,
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AddEditSubscriptionScreen(
+                            subscriptionId: subscriptionId,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildAppBarButton(
+                    icon: Icons.delete_rounded,
+                    iconColor: AppColors.error,
+                    onPressed: () => _confirmDelete(context, ref, subscription),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
+
+              // Main Content
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 20),
+                      // Logo & Service Name
+                      Hero(
+                        tag: 'logo_${subscription.id}',
+                        child: _buildLogo(subscription, brandColor),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        subscription.serviceName,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
+                          ),
+                        ),
+                        child: Text(
+                          '${subscription.currency} ${subscription.cost.toStringAsFixed(2)} / ${_formatBillingCycle(subscription.billingCycle)}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 40),
+
+                      // Stats Grid
+                      GridView.count(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        childAspectRatio: 1.4,
+                        children: [
+                          _buildInfoCard(
+                            'Next Billing',
+                            DateFormat(
+                              'MMM dd, yyyy',
+                            ).format(subscription.nextBillingDate),
+                            Icons.calendar_today_rounded,
+                            brandColor,
+                            isUrgent:
+                                daysUntilBilling <= 3 && daysUntilBilling >= 0,
+                          ),
+                          _buildInfoCard(
+                            'Days Left',
+                            _formatDaysUntil(daysUntilBilling),
+                            Icons.timer_rounded,
+                            AppColors.secondary,
+                            highlightValue: true,
+                          ),
+                          _buildInfoCard(
+                            'Status',
+                            subscription.isActive ? 'Active' : 'Cancelled',
+                            subscription.isActive
+                                ? Icons.check_circle_rounded
+                                : Icons.cancel_rounded,
+                            subscription.isActive
+                                ? AppColors.success
+                                : AppColors.error,
+                            highlightValue: true,
+                            valueColor: subscription.isActive
+                                ? AppColors.success
+                                : AppColors.error,
+                          ),
+                          _buildInfoCard(
+                            'Auto-Renewal',
+                            subscription.isAutoRenew ? 'On' : 'Off',
+                            Icons.autorenew_rounded,
+                            Colors.white,
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 40),
+
+                      // Actions
+                      if (subscription.isActive) ...[
+                        _buildActionButton(
+                          label: 'Mark as Paid',
+                          icon: Icons.verified_rounded,
+                          backgroundColor: const Color(0xFF2ECC71),
+                          textColor: Colors.white,
+                          onPressed: () =>
+                              _markAsPaid(context, ref, subscription),
+                          hasShadow: true,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildActionButton(
+                          label: 'Cancel Subscription',
+                          icon: Icons.cancel_rounded,
+                          backgroundColor: const Color(
+                            0xFFFF4757,
+                          ).withOpacity(0.1),
+                          borderColor: const Color(0xFFFF4757),
+                          textColor: const Color(0xFFFF4757),
+                          onPressed: () =>
+                              _confirmCancel(context, ref, subscription),
+                        ),
+                      ],
+                      const SizedBox(height: 40),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Header with service info
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    brandColor.withOpacity(0.3),
-                    brandColor.withOpacity(0.1),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                children: [
-                  // Service logo
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: brandColor.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: brandColor, width: 2),
-                    ),
-                    child: Center(
-                      child: Text(
-                        subscription.serviceName.isNotEmpty
-                            ? subscription.serviceName[0].toUpperCase()
-                            : '?',
-                        style: TextStyle(
-                          fontSize: 36,
-                          fontWeight: FontWeight.bold,
-                          color: brandColor,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    subscription.serviceName,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${subscription.currency} ${subscription.cost.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFBB86FC),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatBillingCycle(subscription.billingCycle),
-                    style: TextStyle(fontSize: 16, color: Colors.grey[400]),
-                  ),
-                ],
-              ),
-            ),
+    );
+  }
 
-            // Details section
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildDetailCard(
-                    'Next Billing Date',
-                    DateFormat(
-                      'MMMM dd, yyyy',
-                    ).format(subscription.nextBillingDate),
-                    Icons.calendar_today,
-                    _getHighlightColor(daysUntilBilling),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildDetailCard(
-                    'Days Until Billing',
-                    _formatDaysUntil(daysUntilBilling),
-                    Icons.access_time,
-                    _getHighlightColor(daysUntilBilling),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildDetailCard(
-                    'Start Date',
-                    DateFormat('MMMM dd, yyyy').format(subscription.startDate),
-                    Icons.event,
-                    null,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildDetailCard(
-                    'Auto-Renewal',
-                    subscription.isAutoRenew ? 'Enabled' : 'Disabled',
-                    subscription.isAutoRenew ? Icons.autorenew : Icons.block,
-                    null,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildDetailCard(
-                    'Status',
-                    subscription.isActive ? 'Active' : 'Cancelled',
-                    subscription.isActive ? Icons.check_circle : Icons.cancel,
-                    subscription.isActive
-                        ? const Color(0xFF4CAF50)
-                        : const Color(0xFFFF5252),
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // Action buttons
-                  if (subscription.isActive) ...[
-                    ElevatedButton.icon(
-                      onPressed: () => _markAsPaid(context, ref, subscription),
-                      icon: const Icon(Icons.check),
-                      label: const Text('Mark as Paid'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        backgroundColor: const Color(0xFF4CAF50),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () =>
-                          _confirmCancel(context, ref, subscription),
-                      icon: const Icon(Icons.cancel),
-                      label: const Text('Cancel Subscription'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        foregroundColor: const Color(0xFFFF5252),
-                        side: const BorderSide(color: Color(0xFFFF5252)),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
+  Widget _buildAppBarButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    Color iconColor = Colors.white,
+    Color? backgroundColor,
+  }) {
+    return Container(
+      margin: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: backgroundColor ?? Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(14), // Rounded rectangle (Squircle)
+        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: iconColor, size: 20),
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildDetailCard(
+  Widget _buildLogo(Subscription subscription, Color brandColor) {
+    Widget logoContent;
+    final isDarkBrand = brandColor.computeLuminance() < 0.3;
+    final displayColor = isDarkBrand ? Colors.white : brandColor;
+
+    // Try to find logo URL from subscription or matching preset
+    String? logoUrl = subscription.logoUrl;
+    if (logoUrl == null || logoUrl.isEmpty) {
+      // Fallback: Try to find matching preset
+      try {
+        final preset = presetServices.firstWhere(
+          (p) => p.name.toLowerCase() == subscription.serviceName.toLowerCase(),
+        );
+        logoUrl = preset.logoUrl;
+      } catch (_) {}
+    }
+
+    if (logoUrl != null && logoUrl.isNotEmpty) {
+      logoContent = ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Image.network(
+          logoUrl,
+          width: 64,
+          height: 64,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) =>
+              _buildPlaceholderLogo(subscription, displayColor),
+        ),
+      );
+    } else if (subscription.serviceLogoPath != null &&
+        subscription.serviceLogoPath!.isNotEmpty) {
+      if (subscription.serviceLogoPath!.startsWith('assets/')) {
+        logoContent = Image.asset(
+          subscription.serviceLogoPath!,
+          width: 64,
+          height: 64,
+          color: isDarkBrand ? Colors.white : null,
+          errorBuilder: (_, __, ___) =>
+              _buildPlaceholderLogo(subscription, displayColor),
+        );
+      } else {
+        logoContent = _buildPlaceholderLogo(subscription, displayColor);
+      }
+    } else {
+      logoContent = _buildPlaceholderLogo(subscription, displayColor);
+    }
+
+    return Container(
+      width: 100,
+      height: 100,
+      decoration: BoxDecoration(
+        color: brandColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: brandColor.withOpacity(0.5), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: brandColor.withOpacity(0.3),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Center(child: logoContent),
+    );
+  }
+
+  Widget _buildPlaceholderLogo(Subscription subscription, Color color) {
+    return Text(
+      subscription.serviceName.isNotEmpty
+          ? subscription.serviceName[0].toUpperCase()
+          : '?',
+      style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: color),
+    );
+  }
+
+  Widget _buildInfoCard(
     String label,
     String value,
     IconData icon,
-    Color? highlightColor,
-  ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: highlightColor ?? const Color(0xFFBB86FC),
-              size: 24,
+    Color accentColor, {
+    bool highlightValue = false,
+    Color? valueColor,
+    bool isUrgent = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isUrgent
+            ? const Color(0xFFFF4757).withOpacity(0.1)
+            : AppColors.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isUrgent
+              ? const Color(0xFFFF4757).withOpacity(0.5)
+              : Colors.white.withOpacity(0.05),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: accentColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(fontSize: 14, color: Colors.grey[400]),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: highlightColor ?? Colors.white,
-                    ),
-                  ),
-                ],
+            child: Icon(icon, color: accentColor, size: 20),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color:
+                      valueColor ??
+                      (isUrgent ? const Color(0xFFFF4757) : Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required String label,
+    required IconData icon,
+    required Color backgroundColor,
+    required Color textColor,
+    required VoidCallback onPressed,
+    Color? borderColor,
+    bool hasShadow = false,
+  }) {
+    return Container(
+      width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(30),
+        border: borderColor != null ? Border.all(color: borderColor) : null,
+        boxShadow: hasShadow
+            ? [
+                BoxShadow(
+                  color: backgroundColor.withOpacity(0.4),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : [],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(30),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: textColor, size: 22),
+              const SizedBox(width: 12),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -246,21 +465,10 @@ class SubscriptionDetailScreen extends ConsumerWidget {
         final hex = colorHex.replaceAll('#', '');
         return Color(int.parse('FF$hex', radix: 16));
       } catch (e) {
-        return const Color(0xFFBB86FC);
+        return AppColors.primary;
       }
     }
-    return const Color(0xFFBB86FC);
-  }
-
-  Color? _getHighlightColor(int daysUntilBilling) {
-    if (daysUntilBilling < 0) {
-      return const Color(0xFFFF5252);
-    } else if (daysUntilBilling <= 1) {
-      return const Color(0xFFFF5252);
-    } else if (daysUntilBilling <= 7) {
-      return const Color(0xFFFFC107);
-    }
-    return null;
+    return AppColors.primary;
   }
 
   String _formatBillingCycle(BillingCycle cycle) {
@@ -274,13 +482,13 @@ class SubscriptionDetailScreen extends ConsumerWidget {
 
   String _formatDaysUntil(int days) {
     if (days < 0) {
-      return 'Overdue by ${-days} day${-days != 1 ? 's' : ''}';
+      return '${-days} Days Overdue';
     } else if (days == 0) {
-      return 'Due today!';
+      return 'Today';
     } else if (days == 1) {
-      return 'Due tomorrow';
+      return 'Tomorrow';
     } else {
-      return '$days days';
+      return '$days Days';
     }
   }
 
@@ -295,16 +503,22 @@ class SubscriptionDetailScreen extends ConsumerWidget {
           .markAsPaid(subscription.id);
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Subscription marked as paid')),
+        DynamicIslandToast.show(
+          context,
+          message: 'Subscription marked as paid',
+          icon: Icons.verified_rounded,
+          iconColor: const Color(0xFF2ECC71),
         );
         Navigator.pop(context);
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
+        DynamicIslandToast.show(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+          message: 'Error: $e',
+          icon: Icons.error_rounded,
+          iconColor: AppColors.error,
+        );
       }
     }
   }
@@ -317,19 +531,27 @@ class SubscriptionDetailScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cancel Subscription'),
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text(
+          'Cancel Subscription',
+          style: TextStyle(color: Colors.white),
+        ),
         content: Text(
-          'Are you sure you want to cancel ${subscription.serviceName}? '
-          'This will stop all future notifications.',
+          'Are you sure you want to cancel ${subscription.serviceName}? This will stop all future notifications.',
+          style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('No'),
+            child: const Text('No', style: TextStyle(color: Colors.white)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Yes, Cancel'),
+            child: const Text(
+              'Yes, Cancel',
+              style: TextStyle(color: AppColors.error),
+            ),
           ),
         ],
       ),
@@ -342,16 +564,22 @@ class SubscriptionDetailScreen extends ConsumerWidget {
             .cancelSubscription(subscription.id);
 
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Subscription cancelled')),
+          DynamicIslandToast.show(
+            context,
+            message: 'Subscription cancelled',
+            icon: Icons.cancel_rounded,
+            iconColor: AppColors.textSecondary,
           );
           Navigator.pop(context);
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(
+          DynamicIslandToast.show(
             context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+            message: 'Error: $e',
+            icon: Icons.error_rounded,
+            iconColor: AppColors.error,
+          );
         }
       }
     }
@@ -365,22 +593,27 @@ class SubscriptionDetailScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Subscription'),
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text(
+          'Delete Subscription',
+          style: TextStyle(color: Colors.white),
+        ),
         content: Text(
-          'Are you sure you want to delete ${subscription.serviceName}? '
-          'This action cannot be undone.',
+          'Are you sure you want to delete ${subscription.serviceName}? This action cannot be undone.',
+          style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFFFF5252),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: AppColors.error),
             ),
-            child: const Text('Delete'),
           ),
         ],
       ),
@@ -393,16 +626,22 @@ class SubscriptionDetailScreen extends ConsumerWidget {
             .deleteSubscription(subscription.id);
 
         if (context.mounted) {
-          ScaffoldMessenger.of(
+          DynamicIslandToast.show(
             context,
-          ).showSnackBar(const SnackBar(content: Text('Subscription deleted')));
+            message: 'Subscription deleted',
+            icon: Icons.delete_rounded,
+            iconColor: AppColors.error,
+          );
           Navigator.pop(context);
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(
+          DynamicIslandToast.show(
             context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+            message: 'Error: $e',
+            icon: Icons.error_rounded,
+            iconColor: AppColors.error,
+          );
         }
       }
     }

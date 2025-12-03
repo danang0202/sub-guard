@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../core/constants/app_colors.dart';
-import '../core/exceptions/app_exceptions.dart';
-import '../core/utils/error_handler.dart';
+
 import '../models/notification_config.dart';
 import '../models/user_settings.dart';
 import '../providers/providers.dart';
 import '../services/backup_manager.dart';
 import '../services/permission_handler.dart';
-import '../widgets/settings/settings_widgets.dart';
+import '../widgets/dynamic_island_toast.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -28,104 +27,295 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final batteryDetector = ref.watch(batteryOptimizationDetectorProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              children: [
-                const SectionHeader(title: 'Notification Preferences'),
-                NotificationSettingsSection(
-                  settings: settings,
-                  onConfigChanged: _updateNotificationConfig,
-                  onReminderDaysTap: () =>
-                      _showReminderDaysDialog(settings.notificationConfig),
+      backgroundColor: AppColors.background,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        title: const Text(
+          'Settings',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+            color: Colors.white,
+          ),
+        ),
+      ),
+      body: Stack(
+        children: [
+          // Ambient Glow Background
+          Positioned(
+            top: -100,
+            left: -100,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primary.withOpacity(0.2),
+                    AppColors.secondary.withOpacity(0.1),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                const Divider(height: 32),
-                const SectionHeader(title: 'Currency'),
-                _buildCurrencySettings(settings),
-                const Divider(height: 32),
-                const SectionHeader(title: 'Appearance'),
-                ThemeSettingsSection(
-                  settings: settings,
-                  onThemeChanged: _updateThemeMode,
-                ),
-                const Divider(height: 32),
-                const SectionHeader(title: 'Backup & Restore'),
-                BackupSection(
-                  settings: settings,
-                  onCreateBackup: () => _createBackup(backupManager),
-                  onRestoreBackup: () => _restoreBackup(backupManager),
-                ),
-                const Divider(height: 32),
-                const SectionHeader(title: 'Permissions'),
-                PermissionsSection(onRequestPermissions: _requestPermissions),
-                const Divider(height: 32),
-                const SectionHeader(title: 'Battery Optimization'),
-                BatteryOptimizationSection(
-                  detector: batteryDetector,
-                  onShowGuide: () => _showWhitelistingGuide(batteryDetector),
-                ),
-                const Divider(height: 32),
-                const SectionHeader(title: 'About'),
-                AboutSection(onAboutTap: _showAboutDialog),
-                const SizedBox(height: 32),
-              ],
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.2),
+                    blurRadius: 100,
+                    spreadRadius: 20,
+                  ),
+                ],
+              ),
             ),
+          ),
+          Positioned(
+            bottom: -50,
+            right: -50,
+            child: Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.secondary.withOpacity(0.1),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.secondary.withOpacity(0.1),
+                    blurRadius: 80,
+                    spreadRadius: 10,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Main Content
+          _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                )
+              : CustomScrollView(
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: SizedBox(height: kToolbarHeight + 40),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          _buildSectionHeader('Preferences'),
+                          _buildGlassContainer([
+                            _buildSettingsTile(
+                              icon: Icons.notifications_rounded,
+                              title: 'Notifications',
+                              subtitle: 'Manage reminders & alerts',
+                              onTap: () => _showReminderDaysDialog(
+                                settings.notificationConfig,
+                              ),
+                            ),
+                            _buildDivider(),
+                            _buildSettingsTile(
+                              icon: Icons.currency_exchange_rounded,
+                              title: 'Currency',
+                              subtitle: settings.baseCurrency,
+                              onTap: () =>
+                                  _showCurrencyDialog(settings.baseCurrency),
+                            ),
+                            _buildDivider(),
+                            _buildSettingsTile(
+                              icon: Icons.palette_rounded,
+                              title: 'Appearance',
+                              subtitle: settings.themeMode == AppThemeMode.dark
+                                  ? 'Dark Mode'
+                                  : 'Light Mode',
+                              trailing: Switch(
+                                value: settings.themeMode == AppThemeMode.dark,
+                                onChanged: (value) => _updateThemeMode(
+                                  value
+                                      ? AppThemeMode.dark
+                                      : AppThemeMode.light,
+                                ),
+                                activeColor: AppColors.primary,
+                              ),
+                            ),
+                          ]),
+
+                          const SizedBox(height: 24),
+                          _buildSectionHeader('Data & Privacy'),
+                          _buildGlassContainer([
+                            _buildSettingsTile(
+                              icon: Icons.backup_rounded,
+                              title: 'Backup Data',
+                              subtitle: 'Save your subscriptions locally',
+                              onTap: () => _createBackup(backupManager),
+                            ),
+                            _buildDivider(),
+                            _buildSettingsTile(
+                              icon: Icons.restore_rounded,
+                              title: 'Restore Data',
+                              subtitle: 'Import from a backup file',
+                              onTap: () => _restoreBackup(backupManager),
+                            ),
+                            _buildDivider(),
+                            _buildSettingsTile(
+                              icon: Icons.security_rounded,
+                              title: 'Permissions',
+                              subtitle: 'Manage app permissions',
+                              onTap: _requestPermissions,
+                            ),
+                          ]),
+
+                          const SizedBox(height: 24),
+                          _buildSectionHeader('System'),
+                          _buildGlassContainer([
+                            _buildSettingsTile(
+                              icon: Icons.battery_saver_rounded,
+                              title: 'Battery Optimization',
+                              subtitle: 'Ensure reminders work reliably',
+                              onTap: () =>
+                                  _showWhitelistingGuide(batteryDetector),
+                            ),
+                            _buildDivider(),
+                            _buildSettingsTile(
+                              icon: Icons.info_outline_rounded,
+                              title: 'About',
+                              subtitle: 'Version 1.0.0',
+                              onTap: _showAboutDialog,
+                            ),
+                          ]),
+                          const SizedBox(height: 40),
+                        ]),
+                      ),
+                    ),
+                  ],
+                ),
+        ],
+      ),
     );
   }
 
-  Widget _buildCurrencySettings(UserSettings settings) {
-    return ListTile(
-      title: const Text('Base Currency'),
-      subtitle: Text(settings.baseCurrency),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () => _showCurrencyDialog(settings.baseCurrency),
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8, bottom: 12),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: AppColors.textSecondary,
+          letterSpacing: 1.0,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassContainer(List<Widget> children) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _buildSettingsTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    VoidCallback? onTap,
+    Widget? trailing,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (trailing != null) ...[
+                const SizedBox(width: 8),
+                trailing,
+              ] else
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDivider() {
+    return Divider(
+      height: 1,
+      thickness: 1,
+      color: Colors.white.withOpacity(0.05),
+      indent: 60,
     );
   }
 
   // ============ Action Methods ============
-
-  Future<void> _updateNotificationConfig(NotificationConfig config) async {
-    try {
-      await ref
-          .read(userSettingsNotifierProvider.notifier)
-          .updateNotificationConfig(config);
-
-      if (mounted) {
-        ErrorHandler.showSuccess(context, 'Notification settings updated');
-      }
-    } catch (e) {
-      if (mounted) {
-        ErrorHandler.handle(
-          context,
-          ServiceException(
-            message: 'Failed to update notification config: $e',
-            userFriendlyMessage: 'Failed to update notification settings',
-            originalError: e,
-          ),
-        );
-      }
-    }
-  }
 
   Future<void> _updateThemeMode(AppThemeMode themeMode) async {
     try {
       await ref
           .read(userSettingsNotifierProvider.notifier)
           .updateThemeMode(themeMode);
-
-      if (mounted) {
-        ErrorHandler.showSuccess(context, 'Theme updated');
-      }
     } catch (e) {
       if (mounted) {
-        ErrorHandler.handle(
+        DynamicIslandToast.show(
           context,
-          ServiceException(
-            message: 'Failed to update theme: $e',
-            userFriendlyMessage: 'Failed to update theme',
-            originalError: e,
-          ),
+          message: 'Failed to update theme',
+          icon: Icons.error_rounded,
+          iconColor: AppColors.error,
         );
       }
     }
@@ -140,41 +330,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
       switch (result) {
         case PermissionRequestResult.allGranted:
-          ErrorHandler.showSuccess(context, 'All permissions granted!');
+          DynamicIslandToast.show(
+            context,
+            message: 'All permissions granted!',
+            icon: Icons.check_circle_rounded,
+          );
           setState(() {});
           break;
         case PermissionRequestResult.notificationDenied:
-          ErrorHandler.showError(
-            context,
-            PermissionException(
-              message: 'Notification permission denied',
-              userFriendlyMessage: 'Notification permission denied',
-              permissionName: 'notification',
-            ),
-          );
-          break;
         case PermissionRequestResult.exactAlarmDenied:
-          ErrorHandler.showError(
+          DynamicIslandToast.show(
             context,
-            PermissionException(
-              message: 'Exact alarm permission denied',
-              userFriendlyMessage: 'Exact alarm permission denied',
-              permissionName: 'exact_alarm',
-            ),
+            message: 'Some permissions denied',
+            icon: Icons.warning_rounded,
+            iconColor: const Color(0xFFFFC107),
           );
           break;
         case PermissionRequestResult.userCancelled:
-          ErrorHandler.showWarning(context, 'Permission request cancelled');
           break;
       }
     } catch (e) {
       if (mounted) {
-        ErrorHandler.handle(
+        DynamicIslandToast.show(
           context,
-          PermissionException(
-            message: 'Error requesting permissions: $e',
-            userFriendlyMessage: 'Failed to request permissions',
-          ),
+          message: 'Error requesting permissions',
+          icon: Icons.error_rounded,
+          iconColor: AppColors.error,
         );
       }
     }
@@ -188,31 +369,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final selected = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Select Base Currency'),
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text(
+          'Select Base Currency',
+          style: TextStyle(color: Colors.white),
+        ),
         content: SingleChildScrollView(
-          child: RadioGroup<String>(
-            groupValue: currentCurrency,
-            onChanged: (value) {
-              if (value != null) Navigator.pop(context, value);
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: currencies.map((currency) {
-                return ListTile(
-                  leading: Radio<String>(value: currency),
-                  title: Text(currency),
-                  onTap: () => Navigator.pop(context, currency),
-                );
-              }).toList(),
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: currencies.map((currency) {
+              final isSelected = currency == currentCurrency;
+              return ListTile(
+                leading: Icon(
+                  isSelected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: isSelected
+                      ? AppColors.primary
+                      : AppColors.textSecondary,
+                ),
+                title: Text(
+                  currency,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : AppColors.textSecondary,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+                onTap: () => Navigator.pop(context, currency),
+              );
+            }).toList(),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
       ),
     );
 
@@ -223,17 +413,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             .updateBaseCurrency(selected);
 
         if (mounted) {
-          ErrorHandler.showSuccess(context, 'Currency updated');
+          DynamicIslandToast.show(
+            context,
+            message: 'Currency updated to $selected',
+            icon: Icons.currency_exchange_rounded,
+          );
         }
       } catch (e) {
         if (mounted) {
-          ErrorHandler.handle(
+          DynamicIslandToast.show(
             context,
-            ServiceException(
-              message: 'Failed to update currency: $e',
-              userFriendlyMessage: 'Failed to update currency',
-              originalError: e,
-            ),
+            message: 'Failed to update currency',
+            icon: Icons.error_rounded,
+            iconColor: AppColors.error,
           );
         }
       }
@@ -244,16 +436,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reminder Days'),
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text(
+          'Reminder Days',
+          style: TextStyle(color: Colors.white),
+        ),
         content: Text(
           'Current reminder schedule:\n\n'
           '${config.reminderDays.map((d) => '• $d days before billing').join('\n')}\n\n'
           'Customization coming soon!',
+          style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+            child: const Text('OK', style: TextStyle(color: AppColors.primary)),
           ),
         ],
       ),
@@ -264,21 +462,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('About SUB-GUARD'),
-        content: const Text(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text(
+          'About SUB-GUARD',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Text(
           'SUB-GUARD is a subscription tracking and reminder app designed to help you '
           'manage your digital subscriptions and prevent unwanted charges.\n\n'
-          'Features:\n'
-          '• Track monthly and yearly subscriptions\n'
-          '• Receive timely reminders before billing\n'
-          '• View subscriptions in calendar format\n'
-          '• Backup and restore your data\n\n'
           'Version 1.0.0',
+          style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: const Text(
+              'Close',
+              style: TextStyle(color: AppColors.primary),
+            ),
           ),
         ],
       ),
@@ -295,7 +497,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Battery Optimization Guide'),
+            backgroundColor: AppColors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            title: const Text(
+              'Battery Optimization',
+              style: TextStyle(color: Colors.white),
+            ),
             content: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -303,17 +512,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 children: [
                   Text(
                     'Device: $deviceModel',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                   const SizedBox(height: 16),
-                  Text(instructions),
+                  Text(
+                    instructions,
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
                 ],
               ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
+                child: const Text(
+                  'Close',
+                  style: TextStyle(color: AppColors.primary),
+                ),
               ),
             ],
           ),
@@ -321,13 +539,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ErrorHandler.handle(
+        DynamicIslandToast.show(
           context,
-          ServiceException(
-            message: 'Failed to get device info: $e',
-            userFriendlyMessage: 'Failed to load battery optimization guide',
-            originalError: e,
-          ),
+          message: 'Failed to load guide',
+          icon: Icons.error_rounded,
+          iconColor: AppColors.error,
         );
       }
     }
@@ -339,72 +555,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final filePath = await backupManager.exportToJson();
+      await backupManager.exportToJson();
 
       if (mounted) {
         setState(() => _isLoading = false);
-        _showBackupSuccessDialog(filePath);
+        DynamicIslandToast.show(
+          context,
+          message: 'Backup created successfully',
+          icon: Icons.save_rounded,
+        );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        _showBackupErrorDialog(e);
+        DynamicIslandToast.show(
+          context,
+          message: 'Backup failed',
+          icon: Icons.error_rounded,
+          iconColor: AppColors.error,
+        );
       }
     }
-  }
-
-  void _showBackupSuccessDialog(String filePath) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Backup Created'),
-        content: Text('Backup saved successfully to:\n\n$filePath'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showBackupErrorDialog(dynamic e) {
-    String errorMessage = 'Backup Failed';
-    String errorDetails = e.toString();
-
-    if (e is BackupManagerException) {
-      switch (e.type) {
-        case BackupErrorType.storagePermissionDenied:
-          errorMessage = 'Permission Denied';
-          errorDetails = 'Storage permission is required to create backups.';
-          break;
-        case BackupErrorType.writeError:
-          errorMessage = 'Write Error';
-          errorDetails = 'Failed to write backup file.';
-          break;
-        case BackupErrorType.parseError:
-          errorMessage = 'Serialization Error';
-          errorDetails = 'Failed to convert data to JSON format.';
-          break;
-        default:
-          errorDetails = e.message;
-      }
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(errorMessage),
-        content: Text(errorDetails),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _restoreBackup(BackupManager backupManager) async {
@@ -418,18 +589,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (result == null || result.files.isEmpty) return;
 
       final filePath = result.files.single.path;
-      if (filePath == null) {
-        if (mounted) {
-          ErrorHandler.showError(
-            context,
-            ValidationException(
-              message: 'File path is null',
-              userFriendlyMessage: 'Failed to get file path',
-            ),
-          );
-        }
-        return;
-      }
+      if (filePath == null) return;
 
       final confirmed = await _showRestoreConfirmDialog();
       if (confirmed != true) return;
@@ -442,24 +602,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         if (mounted) {
           setState(() => _isLoading = false);
           ref.invalidate(subscriptionListProvider);
-          _showRestoreSuccessDialog();
+          DynamicIslandToast.show(
+            context,
+            message: 'Data restored successfully',
+            icon: Icons.restore_rounded,
+          );
         }
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);
-          _showRestoreErrorDialog(e);
+          DynamicIslandToast.show(
+            context,
+            message: 'Restore failed',
+            icon: Icons.error_rounded,
+            iconColor: AppColors.error,
+          );
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ErrorHandler.handle(
+        DynamicIslandToast.show(
           context,
-          ServiceException(
-            message: 'Restore backup failed: $e',
-            userFriendlyMessage: 'Failed to restore backup',
-            originalError: e,
-          ),
+          message: 'Error picking file',
+          icon: Icons.error_rounded,
+          iconColor: AppColors.error,
         );
       }
     }
@@ -469,71 +636,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Restore Backup?'),
-        content: const Text(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text(
+          'Restore Backup?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Text(
           'This will replace all your current subscriptions and settings.\n\n'
           'This action cannot be undone.',
+          style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('Restore'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showRestoreSuccessDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Restore Successful'),
-        content: const Text('Your data has been restored successfully.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showRestoreErrorDialog(dynamic e) {
-    String errorMessage = 'Failed to restore backup';
-    String errorDetails = e.toString();
-
-    if (e is BackupManagerException) {
-      switch (e.type) {
-        case BackupErrorType.fileNotFound:
-          errorMessage = 'File Not Found';
-          break;
-        case BackupErrorType.invalidFormat:
-          errorMessage = 'Invalid File Format';
-          break;
-        case BackupErrorType.parseError:
-          errorMessage = 'Parse Error';
-          break;
-        default:
-          errorDetails = e.message;
-      }
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(errorMessage),
-        content: Text(errorDetails),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
           ),
         ],
       ),
